@@ -3,7 +3,7 @@ import visgeom as vg
 import matplotlib
 import matplotlib.pyplot as plt
 from pylie import SO3, SE3
-from optim import gauss_newton
+from optim import gauss_newton, Levenberg_Marquart
 
 """Example 1 - Nonlinear least squares estimation"""
 
@@ -26,6 +26,7 @@ class NoiseFreePointAlignmentBasedPoseEstimatorObjective:
 
         # Enter the submatrices from each measurement:
         for i in range(self.num_points):
+        
             A[3 * i:3 * (i + 1), :] = T_wo_inv.jac_action_Xx_wrt_X(self.x_w[:, [i]]) @ T_wo.jac_inverse_X_wrt_X()
             b[3 * i:3 * (i + 1)] = (self.x_o[:, [i]] - T_wo_inv * self.x_w[:, [i]])
 
@@ -37,17 +38,19 @@ def main():
     points_w = vg.utils.generate_box()
 
     # True observer pose.
-    true_pose_wo = SE3((SO3.rot_z(np.pi), np.array([[3, 0, 0]]).T))
+    true_pose_wo = SE3((SO3.from_roll_pitch_yaw(np.pi, 1.2, -0.3), np.array([[1.0, -2, 3.2]]).T))
 
     # Observed box.
     points_o = vg.utils.generate_box(pose=true_pose_wo.inverse().to_tuple())
+     
+    # add noise to the observed points
+    # points_o += np.random.normal(0, 1.5, points_o.shape)
 
-    # Perturb observer pose and use as initial state.
-    init_pose_wo = true_pose_wo + np.random.randn(6, 1)
 
+    init_pose_wo = SE3((SO3.from_roll_pitch_yaw(np.pi, 0, np.pi), np.array([[10, 10, -10]]).T))
     # Estimate pose in the world frame from point correspondences.
     model = NoiseFreePointAlignmentBasedPoseEstimatorObjective(points_w, points_o)
-    x, cost, A, b = gauss_newton(init_pose_wo, model)
+    x, cost, A, b = Levenberg_Marquart(init_pose_wo, model, max_num_it=100)
 
     # Visualize (press a key to jump to the next iteration).
     # Use Qt 5 backend in visualisation.
